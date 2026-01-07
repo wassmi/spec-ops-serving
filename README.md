@@ -17,7 +17,7 @@ A high-performance LLM inference engine using ONNX Runtime and Speculative Decod
 * **Verification:** Verified January 2026 via Prometheus/Grafana telemetry
 
 ### 📈 Monitoring Dashboard
-![Performance Dashboard](./assets/Grafana.JPG)
+![Performance Dashboard](/workspaces/spec-ops-mlops/docs/assets/Grafana.JPG)
 *The graph above visualizes the throughput surge from 3.2 TPS to 15.8 TPS immediately following the activation of the N-Gram Heuristic Speculator.*
 
 ---
