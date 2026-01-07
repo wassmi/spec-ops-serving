@@ -9,7 +9,17 @@ from src.metrics import SessionMetrics
 
 class SpeculativeEngine:
     def __init__(self, tokenizer_id, repo_id="wassmi/spec-ops-phi3-onnx"):
+        
         self.target_path = "models/target/model_quantized.onnx"
+        if not os.path.exists(self.target_path):
+            print(f"📥 Model not found at {self.target_path}. Pulling from Registry...")
+            os.makedirs(os.path.dirname(self.target_path), exist_ok=True)
+            hf_hub_download(
+                repo_id=repo_id,
+                filename="model_quantized.onnx",
+                local_dir="models/target",
+                revision="main" # or your specific branch
+            )
         self.tokenizer = AutoTokenizer.from_pretrained(
             tokenizer_id, revision="fe8a4ea1ffedaf415f4da2f062534de366a451e6"
         )

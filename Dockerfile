@@ -14,6 +14,7 @@ WORKDIR /app
 # 2. Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install huggingface_hub
 
 # 3. Copy the rest of the application
 COPY . .

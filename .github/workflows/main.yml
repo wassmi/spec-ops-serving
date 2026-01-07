@@ -21,10 +21,9 @@ jobs:
           
       - name: Health Check & Warmup
         run: |
-          echo "⏳ Waiting 20s for Heuristic Engine to stabilize..."
-          sleep 20
-          curl --retry 5 --retry-delay 5 --retry-connrefused http://localhost:8888/health || (docker logs api && exit 1)
-
+          echo "⏳ Waiting 60s for Model Download and Engine Warmup..."
+          sleep 60
+          curl --retry 10 --retry-delay 10 --retry-connrefused http://localhost:8888/health || (docker logs api && exit 1)
       - name: Smoke Test Generation
         run: |
           curl -X POST http://localhost:8888/generate             -H "Content-Type: application/json"             -d '{"prompt": "The capital of France is", "max_new_tokens": 5}'
