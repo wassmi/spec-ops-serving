@@ -20,7 +20,7 @@ RUN pip install huggingface_hub
 COPY . .
 
 # Expose the port FastAPI runs on
-EXPOSE 8000
+EXPOSE 8888
 
 # Run the server
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "src/main.py"]
