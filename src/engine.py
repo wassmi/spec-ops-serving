@@ -5,6 +5,7 @@ import gc
 from transformers import AutoTokenizer
 from src.metrics import SessionMetrics
 
+
 class SpeculativeEngine:
     def __init__(self, target_path, draft_path, tokenizer_id):
         # I am using the tokenizer and setting up hardened session options
@@ -15,7 +16,7 @@ class SpeculativeEngine:
         sess_options.intra_op_num_threads = 1
         sess_options.inter_op_num_threads = 1
         sess_options.enable_mem_pattern = False
-        
+
         # Release memory back to OS aggressively
         sess_options.add_session_config_entry(
             "session.use_device_allocator_for_initialization", "1"
@@ -31,19 +32,29 @@ class SpeculativeEngine:
 
         # Auto-detect architecture (Counting KV layers and heads)
         self.target_layers = (
-            sum(1 for x in self.target_sess.get_inputs() if "past_key_values" in x.name) // 2
+            sum(1 for x in self.target_sess.get_inputs() if "past_key_values" in x.name)
+            // 2
         )
         self.draft_layers = (
-            sum(1 for x in self.draft_sess.get_inputs() if "past_key_values" in x.name) // 2
+            sum(1 for x in self.draft_sess.get_inputs() if "past_key_values" in x.name)
+            // 2
         )
 
-        t_kv = next(x for x in self.target_sess.get_inputs() if "past_key_values.0.key" in x.name)
+        t_kv = next(
+            x
+            for x in self.target_sess.get_inputs()
+            if "past_key_values.0.key" in x.name
+        )
         self.target_heads = t_kv.shape[1]
 
-        d_kv = next(x for x in self.draft_sess.get_inputs() if "past_key_values.0.key" in x.name)
+        d_kv = next(
+            x for x in self.draft_sess.get_inputs() if "past_key_values.0.key" in x.name
+        )
         self.draft_heads = d_kv.shape[1]
 
-        print(f"✅ Engine Ready | Target: {self.target_layers}L/{self.target_heads}H | Draft: {self.draft_layers}L/{self.draft_heads}H")
+        print(
+            f"✅ Engine Ready | Target: {self.target_layers}L/{self.target_heads}H | Draft: {self.draft_layers}L/{self.draft_heads}H"
+        )
 
     def _get_logits(self, session, input_ids, num_layers, num_heads):
         """Helper to run inference while providing required zero-filled KV caches."""
@@ -62,7 +73,7 @@ class SpeculativeEngine:
         if "use_cache_branch" in model_inputs:
             input_feed["use_cache_branch"] = np.array([False], dtype=bool)
 
-        # I am passing empty KV caches (zeros) because this implementation 
+        # I am passing empty KV caches (zeros) because this implementation
         # uses the non-caching branch of the ONNX model for stability.
         for i in range(num_layers):
             input_feed[f"past_key_values.{i}.key"] = np.zeros(
@@ -97,7 +108,7 @@ class SpeculativeEngine:
                 target_logits = self._get_logits(
                     self.target_sess, draft_ids, self.target_layers, self.target_heads
                 )
-                
+
                 # I am pulling the predictions for all proposed positions
                 target_preds = np.argmax(
                     target_logits[0, prefix_len - 1 : -1, :], axis=-1
