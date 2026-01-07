@@ -11,6 +11,7 @@ from prometheus_client import (
     CONTENT_TYPE_LATEST,
 )
 from src.engine import SpeculativeEngine
+from src.metrics import SessionMetrics
 
 # --- LOGGING SETUP ---
 logging.basicConfig(
