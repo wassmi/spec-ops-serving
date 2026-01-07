@@ -18,4 +18,4 @@ venv/
 .cursor/
 
 # Hugging Face Cache
-.cache/
+.cache/models/
