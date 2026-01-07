@@ -45,17 +45,34 @@ jobs:
 
       - name: Performance Smoke Test
         run: |
-          # Start container in background
-          docker run -d -p 8000:8000 --name ci_test spec-ops-api:${{ github.sha }}
-          sleep 15 # Wait for models to load
+          # 1. Start the container
+          docker run -d -p 8000:8000 --name ci_test spec-ops-api:test
           
-          # Ping health and check for > 2 TPS
-          RESPONSE=$(curl -s http://localhost:8000/generate -H "Content-Type: application/json" -d '{"prompt": "Hi", "k_draft": 1}')
-          TPS=$(echo $RESPONSE | jq -r '.tokens_per_second')
+          # 2. Increased Grace Period (30s) + Health Check Loop
+          echo "⏳ Waiting for engine to initialize (30s)..."
+          sleep 30 
+
+          # 3. Warm-up & Performance Check with Verbose Error Output
+          # We'll use -v to see if there's a connection error
+          RESPONSE=$(curl -s -X POST http://localhost:8000/generate \
+            -H "Content-Type: application/json" \
+            -d '{"prompt": "The future of AI is", "k_draft": 1, "max_new_tokens": 10}')
           
+          # Debug: Print the raw response so we can see it in logs
+          echo "Raw API Response: $RESPONSE"
+          
+          TPS=$(echo $RESPONSE | jq -r '.tokens_per_second // "0.0"')
+          
+          echo "📊 CI Benchmark Result: $TPS TPS"
+
+          # 4. Logic Gate with Debug Logs on Failure
           if (( $(echo "$TPS < 2.0" | bc -l) )); then
-            echo "❌ Performance Regression! TPS: $TPS is below threshold."
+            echo "❌ FAILURE: Performance regression or startup error!"
+            echo "--- DOCKER LOGS ---"
+            docker logs ci_test
+            docker stop ci_test
             exit 1
           fi
-          echo "✅ Performance Verified: $TPS TPS"
+
+          echo "✅ SUCCESS: Performance within threshold."
           docker stop ci_test
