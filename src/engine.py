@@ -1,7 +1,10 @@
+import time
 import onnxruntime as ort
 import numpy as np
 import gc
 from transformers import AutoTokenizer
+from src.metrics import SessionMetrics
+import time
 
 class SpeculativeEngine:
     def __init__(self, target_path, draft_path, tokenizer_id):
@@ -60,15 +63,21 @@ class SpeculativeEngine:
         
         return session.run(None, input_feed)[0]
 
-    def generate(self, prompt, max_new_tokens=15, K=1):
+    def generate(self, prompt, max_new_tokens=15, K=3): # Increased K to 3 for better benchmarking
+        metrics = SessionMetrics()
         input_ids = self.tokenizer.encode(prompt, return_tensors="np")
+        metrics.start_time = time.time()
+        
+        initial_len = input_ids.shape[1]
         
         try:
             for _ in range(max_new_tokens):
                 prefix_len = input_ids.shape[1]
+                if (prefix_len - initial_len) >= max_new_tokens: break
+                
                 draft_ids = input_ids.copy()
                 
-                # 1. Draft Proposal (K tokens)
+                # 1. Draft Proposal
                 for _ in range(K):
                     logits = self._get_logits(self.draft_sess, draft_ids, self.draft_layers, self.draft_heads)
                     next_tok = np.argmax(logits[:, -1, :], axis=-1).reshape(1, 1)
@@ -76,33 +85,30 @@ class SpeculativeEngine:
                 
                 # 2. Target Verification
                 target_logits = self._get_logits(self.target_sess, draft_ids, self.target_layers, self.target_heads)
-                
-                # Extract predictions for the indices we just drafted
                 target_preds = np.argmax(target_logits[0, prefix_len-1:-1, :], axis=-1)
                 draft_tokens = draft_ids[0, prefix_len:]
                 
-                # 3. Compare Draft vs Target
+                # 3. Compare
                 n_matches = 0
                 for i in range(len(draft_tokens)):
                     if draft_tokens[i] == target_preds[i]:
                         n_matches += 1
-                    else:
-                        break
+                    else: break
                 
-                # 4. Update Sequence (Accept matches + the next target token)
+                # Log Metric
+                metrics.acceptance_records.append(n_matches)
+                
+                # 4. Update Sequence
                 accepted = target_preds[:n_matches + 1].reshape(1, -1)
                 input_ids = np.concatenate([input_ids, accepted], axis=-1)
                 
-                print(f"🚀 Jump: +{n_matches} | Seq: {input_ids.shape[1]}", flush=True)
-                
-                if self.tokenizer.eos_token_id in accepted:
-                    break
+                if self.tokenizer.eos_token_id in accepted: break
+            
+            metrics.end_time = time.time()
+            metrics.total_tokens = input_ids.shape[1] - initial_len
             
             final_output = self.tokenizer.decode(input_ids[0], skip_special_tokens=True)
-            return final_output
+            return final_output, metrics.report() # Return both text and stats
 
         finally:
-            # CLEANUP: Crucial to prevent 502/OOM crashes
-            if 'target_logits' in locals(): del target_logits
-            if 'logits' in locals(): del logits
             gc.collect()
