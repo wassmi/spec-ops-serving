@@ -9,7 +9,7 @@ from src.metrics import SessionMetrics
 class SpeculativeEngine:
     def __init__(self, target_path, draft_path, tokenizer_id):
         # I am using the tokenizer and setting up hardened session options
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_id, revision="fe8a4ea1ffedaf415f4da2f062534de366a451e6")
 
         # HARDENED SESSION OPTIONS (Optimized for your 4GB/8GB environment)
         sess_options = ort.SessionOptions()
