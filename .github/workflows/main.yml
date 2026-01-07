@@ -30,7 +30,18 @@ jobs:
     needs: quality-gate
     runs-on: ubuntu-latest
     steps:
-      # Fix: Download actual LFS files so ONNX doesn't crash on "pointers"
+      # STEP 1: Aggressive cleanup to create room for 2GB+ models
+      - name: Free Disk Space
+        run: |
+          echo "🧹 Clearing unneeded pre-installed software..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo docker image prune --all --force
+          df -h
+
+      # STEP 2: Checkout with LFS
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -39,38 +50,38 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # STEP 3: Build with "load: true" but restricted caching to save disk
       - name: Build Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          load: true # Loads image into local Docker daemon for the smoke test
+          load: true 
           tags: spec-ops-api:test
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # We removed cache-to here to prevent disk bloat during the build process
 
+      # STEP 4: The Performance Benchmark
       - name: Performance Smoke Test
         run: |
-          # 1. Start the container
+          # Start the container
           docker run -d -p 8000:8000 --name ci_test spec-ops-api:test
           
-          # 2. Grace Period for model loading
-          echo "⏳ Waiting 30s for engine to load models..."
-          sleep 30 
+          echo "⏳ Waiting 45s for speculative engine to load (2 models)..."
+          sleep 45 
 
-          # 3. Benchmark Request
+          # Benchmark Request
           RESPONSE=$(curl -s -X POST http://localhost:8000/generate \
             -H "Content-Type: application/json" \
             -d '{"prompt": "The future of AI is", "k_draft": 1, "max_new_tokens": 10}')
           
           echo "Raw API Response: $RESPONSE"
           
-          # Extract TPS, default to 0.0 if field is missing or null
           TPS=$(echo $RESPONSE | jq -r '.tokens_per_second // 0.0')
           echo "📊 CI Benchmark Result: $TPS TPS"
 
-          # 4. Performance Gate
+          # Performance Gate
           if (( $(echo "$TPS < 2.0" | bc -l) )); then
-            echo "❌ FAILURE: TPS ($TPS) is below threshold or API timed out."
+            echo "❌ FAILURE: Performance regression ($TPS TPS) or startup error."
             echo "--- DOCKER LOGS ---"
             docker logs ci_test
             docker stop ci_test
