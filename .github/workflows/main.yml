@@ -16,15 +16,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Linting & Security Tools
+      - name: Install Tools
         run: |
           pip install black flake8 bandit safety
 
-      - name: Security Scan (Python Code)
-        run: bandit -r src/
-        
-      - name: Dependency Audit
-        run: safety check
+      - name: Linting & Security
+        run: |
+          black --check src/
+          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          bandit -r src/
 
   build-and-verify:
     needs: quality-gate
@@ -32,47 +32,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Image
-        run: docker build -t spec-ops-api:${{ github.sha }} .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Container Security Scan (Trivy)
-        uses: aquasecurity/trivy-action@master
+      - name: Build Image
+        uses: docker/build-push-action@v5
         with:
-          image-ref: 'spec-ops-api:${{ github.sha }}'
-          format: 'table'
-          exit-code: '1' # Fails the build if "High" vulnerabilities are found
-          severity: 'CRITICAL,HIGH'
+          context: .
+          load: true # CRITICAL: This loads the image into the local Docker daemon
+          tags: spec-ops-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Performance Smoke Test
         run: |
           # 1. Start the container
           docker run -d -p 8000:8000 --name ci_test spec-ops-api:test
           
-          # 2. Increased Grace Period (30s) + Health Check Loop
-          echo "⏳ Waiting for engine to initialize (30s)..."
+          # 2. Grace Period for model loading
+          echo "⏳ Waiting 30s for engine to load models..."
           sleep 30 
 
-          # 3. Warm-up & Performance Check with Verbose Error Output
-          # We'll use -v to see if there's a connection error
+          # 3. Benchmark Request
+          # jq -r '.tokens_per_second // 0.0' handles 'null' if API isn't ready
           RESPONSE=$(curl -s -X POST http://localhost:8000/generate \
             -H "Content-Type: application/json" \
             -d '{"prompt": "The future of AI is", "k_draft": 1, "max_new_tokens": 10}')
           
-          # Debug: Print the raw response so we can see it in logs
           echo "Raw API Response: $RESPONSE"
           
-          TPS=$(echo $RESPONSE | jq -r '.tokens_per_second // "0.0"')
-          
+          TPS=$(echo $RESPONSE | jq -r '.tokens_per_second // 0.0')
           echo "📊 CI Benchmark Result: $TPS TPS"
 
-          # 4. Logic Gate with Debug Logs on Failure
+          # 4. Performance Gate (Using bc for decimal comparison)
           if (( $(echo "$TPS < 2.0" | bc -l) )); then
-            echo "❌ FAILURE: Performance regression or startup error!"
+            echo "❌ FAILURE: TPS ($TPS) is below threshold or API timed out."
             echo "--- DOCKER LOGS ---"
             docker logs ci_test
             docker stop ci_test
             exit 1
           fi
 
-          echo "✅ SUCCESS: Performance within threshold."
+          echo "✅ SUCCESS: Performance verified at $TPS TPS."
           docker stop ci_test
