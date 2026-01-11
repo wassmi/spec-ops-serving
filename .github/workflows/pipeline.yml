@@ -5,10 +5,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
 permissions:
   contents: read
   packages: write
-
 
 jobs:
   quality-gate:
@@ -24,7 +24,6 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
-          # We install the CPU version specifically for the runner
           pip install onnxruntime 
 
       - name: Run Heuristic Benchmark
@@ -33,8 +32,7 @@ jobs:
           PYTHONPATH: .
         run: python3 scripts/ci_benchmark.py
 
-  # This part only runs if the Benchmark passes
-build-and-push:
+  build-and-push:
     needs: quality-gate
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
