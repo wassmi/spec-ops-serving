@@ -1,7 +1,7 @@
-# SpecOps Inference Engine (V1)
+# SpecOps Serving Engine (V1)
 
-[![Pipeline Status](https://github.com/wassmi/spec-ops-mlops/actions/workflows/pipeline.yml/badge.svg)](https://github.com/wassmi/spec-ops-mlops/actions)
-[![Registry](https://img.shields.io/badge/Container-GHCR-blue?logo=docker&logoColor=white)](https://github.com/wassmi/spec-ops-mlops/pkgs/container/spec-ops-mlops)
+[![Pipeline Status](https://github.com/wassmi/spec-ops-serving/actions/workflows/pipeline.yml/badge.svg)](https://github.com/wassmi/spec-ops-serving/actions)
+[![Registry](https://img.shields.io/badge/Container-GHCR-blue?logo=docker&logoColor=white)](https://github.com/wassmi/spec-ops-serving/pkgs/container/spec-ops-serving)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 

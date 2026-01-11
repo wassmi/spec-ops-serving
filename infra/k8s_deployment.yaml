@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: engine
-        image: ghcr.io/wassmi/spec-ops-mlops:latest
+        image: ghcr.io/wassmi/spec-ops-serving:latest
         ports:
         - containerPort: 8888
         readinessProbe:
